@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "kubemcp": {
+      "type": "local",
+      "command": ["python3", "${workspaceFolder}/k8s_mcp_server.py"],
+      "cwd": "${workspaceFolder}",
+      "enabled": true
+    }
+  }
+}

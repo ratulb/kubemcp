@@ -1,0 +1,9 @@
+kubeadm-init.log
+status-report
+kubeadm-init.sh.tmp
+master-join-cluster.cmd
+master-join-monitor.cmd
+mjm.cmd.tmp
+worker-join-cluster.cmd
+haproxy.draft
+.venv/

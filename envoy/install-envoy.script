@@ -1,0 +1,30 @@
+sudo apt update
+sudo apt install -y apt-transport-https ca-certificates curl gnupg
+
+# Add the official Envoy proxy apt repository
+# The repo supports: bookworm, bullseye, focal, jammy
+# Map other distros to the nearest compatible version
+distro_codename=$(lsb_release -cs)
+case "$distro_codename" in
+  bookworm|bullseye|focal|jammy)
+    envoy_distro=$distro_codename
+    ;;
+  trixie|sid)
+    envoy_distro=bookworm
+    ;;
+  noble|oracular|plucky)
+    envoy_distro=jammy
+    ;;
+  *)
+    envoy_distro=bookworm
+    ;;
+esac
+
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://apt.envoyproxy.io/signing.key \
+  | sudo gpg --batch --yes --dearmor -o /etc/apt/keyrings/envoy-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/envoy-keyring.gpg] https://apt.envoyproxy.io $envoy_distro main" \
+  | sudo tee /etc/apt/sources.list.d/envoy.list > /dev/null
+
+sudo apt update
+sudo apt install -y envoy
