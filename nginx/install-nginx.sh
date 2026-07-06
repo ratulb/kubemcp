@@ -10,15 +10,19 @@ install_nginx_from_official_repo() {
   distro_codename=$(lsb_release -cs)
   case "$distro_codename" in
     bookworm|bullseye)
+      repo_type=debian
       nginx_distro=$distro_codename
       ;;
     trixie|sid)
+      repo_type=debian
       nginx_distro=bookworm
       ;;
     noble|oracular|plucky)
-      nginx_distro=jammy
+      repo_type=ubuntu
+      nginx_distro=$distro_codename
       ;;
     *)
+      repo_type=debian
       nginx_distro=bookworm
       ;;
   esac
@@ -26,11 +30,11 @@ install_nginx_from_official_repo() {
   sudo mkdir -p /etc/apt/keyrings
   curl -fsSL https://nginx.org/keys/nginx_signing.key \
     | sudo gpg --batch --yes --dearmor -o /etc/apt/keyrings/nginx-archive-keyring.gpg
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/debian $nginx_distro nginx" \
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/$repo_type $nginx_distro nginx" \
     | sudo tee /etc/apt/sources.list.d/nginx.list > /dev/null
 
   sudo apt update
-  sudo apt install -y nginx
+  sudo DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confnew" install -y nginx
   sudo apt autoremove -y
   prnt "nginx has been installed on $loadbalancer"
 }
@@ -55,18 +59,18 @@ else
     fi
     distro_codename=$(lsb_release -cs)
     case "$distro_codename" in
-      bookworm|bullseye) nginx_distro=$distro_codename ;;
-      trixie|sid) nginx_distro=bookworm ;;
-      noble|oracular|plucky) nginx_distro=jammy ;;
-      *) nginx_distro=bookworm ;;
+      bookworm|bullseye) repo_type=debian; nginx_distro=$distro_codename ;;
+      trixie|sid) repo_type=debian; nginx_distro=bookworm ;;
+      noble|oracular|plucky) repo_type=ubuntu; nginx_distro=$distro_codename ;;
+      *) repo_type=debian; nginx_distro=bookworm ;;
     esac
     sudo mkdir -p /etc/apt/keyrings
     curl -fsSL https://nginx.org/keys/nginx_signing.key \
       | sudo gpg --batch --yes --dearmor -o /etc/apt/keyrings/nginx-archive-keyring.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/debian $nginx_distro nginx" \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/$repo_type $nginx_distro nginx" \
       | sudo tee /etc/apt/sources.list.d/nginx.list > /dev/null
     sudo apt update
-    sudo apt install -y nginx
+    sudo DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confnew" install -y nginx
     sudo apt autoremove -y
 SCRIPT
   prnt "nginx has been installed on $loadbalancer"

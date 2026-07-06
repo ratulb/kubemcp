@@ -7,19 +7,122 @@ import os
 import re
 import subprocess
 import sys
+import urllib.request
 
 # --- Self-bootstrapping: ensure 'mcp' is available ---
 _PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 _VENV_DIR = os.path.join(_PROJECT_DIR, ".venv")
 _VENV_PYTHON = os.path.join(_VENV_DIR, "bin", "python3")
 
+
+def _bootstrap() -> str:
+    """Ensure mcp is importable. Returns path to python binary that has it.
+
+    Tries up to 6 strategies before giving up:
+      1a. Install/upgrade mcp inside an existing .venv
+      1b. Create fresh .venv + pip install mcp
+      2.   sudo apt install python3-venv python3-pip, retry layer 1b
+      3.   pip install --user mcp (with/without --break-system-packages)
+      3b.  Bootstrap pip via get-pip.py, then install mcp --user
+      4.   Print collected errors + manual fix instructions, sys.exit(1)
+    """
+    _errors: list[str] = []
+
+    # Layer 1a — .venv already exists, just install/upgrade mcp
+    if os.path.isfile(_VENV_PYTHON):
+        try:
+            subprocess.run(
+                [_VENV_PYTHON, "-m", "pip", "install", "mcp"],
+                capture_output=True, timeout=60, check=True,
+            )
+            return _VENV_PYTHON
+        except Exception as exc:
+            _errors.append(f"Layer 1a (pip install in existing .venv): {exc}")
+
+    # Layer 1b — Create .venv from scratch + install mcp
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "venv", _VENV_DIR],
+            capture_output=True, timeout=30, check=True,
+        )
+        subprocess.run(
+            [_VENV_PYTHON, "-m", "pip", "install", "mcp"],
+            capture_output=True, timeout=60, check=True,
+        )
+        return _VENV_PYTHON
+    except Exception as exc:
+        _errors.append(f"Layer 1b (create venv + install): {exc}")
+
+    # Layer 2 — Install OS packages via sudo, retry layer 1b
+    try:
+        subprocess.run(
+            ["sudo", "-n", "apt", "install", "-y", "python3-venv", "python3-pip"],
+            capture_output=True, timeout=120, check=True,
+        )
+        subprocess.run(
+            [sys.executable, "-m", "venv", _VENV_DIR],
+            capture_output=True, timeout=30, check=True,
+        )
+        subprocess.run(
+            [_VENV_PYTHON, "-m", "pip", "install", "mcp"],
+            capture_output=True, timeout=60, check=True,
+        )
+        return _VENV_PYTHON
+    except Exception as exc:
+        _errors.append(f"Layer 2 (sudo apt install + retry): {exc}")
+
+    # Layer 3 — pip install --user (try with then without --break-system-packages)
+    _pip_variants = [
+        [sys.executable, "-m", "pip"],
+        ["pip3"],
+        ["pip"],
+    ]
+    for _pip_base in _pip_variants:
+        for _flag in [["--break-system-packages"], []]:
+            try:
+                _cmd = _pip_base + ["install", "--user"] + _flag + ["mcp"]
+                subprocess.run(_cmd, capture_output=True, timeout=60, check=True)
+                return sys.executable
+            except Exception as exc:
+                _errors.append(
+                    f"Layer 3 ({' '.join(_pip_base)} install --user"
+                    f" {' '.join(_flag)} mcp): {exc}"
+                )
+
+    # Layer 3b — Bootstrap pip via get-pip.py, then install
+    try:
+        urllib.request.urlretrieve(
+            "https://bootstrap.pypa.io/get-pip.py", "/tmp/get-pip.py"
+        )
+        subprocess.run(
+            [sys.executable, "/tmp/get-pip.py", "--user"],
+            capture_output=True, timeout=60, check=True,
+        )
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--user", "--break-system-packages", "mcp"],
+            capture_output=True, timeout=60, check=True,
+        )
+        return sys.executable
+    except Exception as exc:
+        _errors.append(f"Layer 3b (get-pip.py bootstrap): {exc}")
+
+    # Layer 4 — Give up with detailed error + manual fix
+    print("error: Failed to install 'mcp' module. All strategies failed.", file=sys.stderr)
+    for _err in _errors:
+        print(f"  {_err}", file=sys.stderr)
+    print(file=sys.stderr)
+    print("Manual fix:", file=sys.stderr)
+    print("  sudo apt install python3-venv python3-pip", file=sys.stderr)
+    print("  python3 -m venv .venv", file=sys.stderr)
+    print("  .venv/bin/pip install mcp", file=sys.stderr)
+    sys.exit(1)
+
+
 try:
-    import mcp
+    import mcp  # noqa: F811
 except ModuleNotFoundError:
-    if not os.path.isfile(_VENV_PYTHON):
-        subprocess.run([sys.executable, "-m", "venv", _VENV_DIR], check=True)
-        subprocess.run([_VENV_PYTHON, "-m", "pip", "install", "mcp"], check=True)
-    os.execv(_VENV_PYTHON, [_VENV_PYTHON, __file__, *sys.argv[1:]])
+    _target = _bootstrap()
+    os.execv(_target, [_target, __file__, *sys.argv[1:]])
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server

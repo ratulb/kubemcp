@@ -7,3 +7,5 @@ mjm.cmd.tmp
 worker-join-cluster.cmd
 haproxy.draft
 .venv/
+__pycache__/
+*.pyc

@@ -2,12 +2,19 @@
 
 . utils.sh
 
+load_module_line=""
+if nginx -V 2>&1 | grep -q -- '--with-stream=dynamic'; then
+  sudo DEBIAN_FRONTEND=noninteractive apt-get -o Dpkg::Options::="--force-confnew" install -y libnginx-mod-stream
+  load_module_line="load_module modules/ngx_stream_module.so;"
+fi
+
 backends=""
 for _master in $masters; do
   backends="${backends}    server $_master:6443;
 "
 done
 cat <<EOF | tee /tmp/nginx.config.snippet
+$load_module_line
 stream {
   upstream kube-apiservers {
     $backends
